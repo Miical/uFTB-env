@@ -37,11 +37,32 @@ class BranchPredictionBundle(Interface):
         ("full_pred", lambda dut: FullBranchPredirectionBundle.from_regex(dut, r"full_pred_\d_(.*)"))
     ]
 
+
+    def ftb_entry_hit(self):
+        return self.full_pred.hit.value
+
+
+
 class BranchPredictionResp(Interface):
     signals_list = ["last_stage_meta"]
     sub_interfaces = [
         ("s1", lambda dut: BranchPredictionBundle.from_prefix(dut, "s1_")),
-        # ("s2", lambda dut: BranchPredictionBundle.from_prefix(dut, "s2_")),
-        # ("s3", lambda dut: BranchPredictionBundle.from_prefix(dut, "s3_"))
-        # ("last_stage_ftb_entry", lambda dut: FTBEntryBundle.from_prefix(dut, "last_stage_ftb_entry_")
+        ("s2", lambda dut: BranchPredictionBundle.from_prefix(dut, "s2_")),
+        ("s3", lambda dut: BranchPredictionBundle.from_prefix(dut, "s3_")),
+        ("last_stage_ftb_entry", lambda dut: FTBEntryBundle.from_prefix(dut, "last_stage_ftb_entry_"))
     ]
+
+
+    def s1_fire(self):
+        return self.s1.valid.value
+    def s2_fire(self):
+        return self.s2.valid.value and self.s2.hasRedirect.value
+    def s3_fire(self):
+        return self.s3.valid.value and self.s3.hasRedirect.value
+
+
+
+
+
+
+

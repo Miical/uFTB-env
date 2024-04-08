@@ -1,7 +1,10 @@
+NEMU/
 mlvp/
 mcv/
 ovip/
 UT_*/
+ready-to-run/
+*.bin
 
 # Wave Files
 *.fst
