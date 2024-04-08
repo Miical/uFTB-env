@@ -51,56 +51,6 @@ class BPUTop:
 
 
 
-import random
-def rand_bits(bits_num):
-    return random.randint(0, 2**bits_num - 1)
-
-class FTBSlot:
-    def __init__(self, offset, lower, tarStart, sharing, valid):
-        self.offset, self.lower, self.tarStart, self.sharing, self.valid = offset, lower, tarStart, sharing, valid
-
-    @classmethod
-    def from_rand(cls):
-        return cls(offset=rand_bits(4), lower=rand_bits(12),
-                   tarStart=rand_bits(12), sharing=rand_bits(1), valid=rand_bits(1))
-
-
-class FTBEntry:
-    def __init__(self, valid, brSlot, tailSlot, pftAddr, carry, isCall, isRet, isJalr, last_may_be_rvi_call, always_taken):
-        self.valid, self.brSlot, self.tailSlot, self.pftAddr, self.carry, self.isCall, self.isRet, self.isJalr, self.last_may_be_rvi_call, self.always_taken = valid, brSlot, tailSlot, pftAddr, carry, isCall, isRet, isJalr, last_may_be_rvi_call, always_taken
-
-    def send_to(self, ftb_bundle):
-        ftb_bundle.brSlots_0_offset.value = self.brSlot.offset
-        ftb_bundle.brSlots_0_lower.value = self.brSlot.lower
-        ftb_bundle.brSlots_0_tarStat.value = self.brSlot.tarStart
-        ftb_bundle.brSlots_0_valid.value = self.brSlot.valid
-        ftb_bundle.tailSlot_offset.value = self.tailSlot.offset
-        ftb_bundle.tailSlot_lower.value = self.tailSlot.lower
-        ftb_bundle.tailSlot_tarStat.value = self.tailSlot.tarStart
-        ftb_bundle.tailSlot_sharing.value = self.tailSlot.sharing
-        ftb_bundle.tailSlot_valid.value = self.tailSlot.valid
-        ftb_bundle.pftAddr.value = self.pftAddr
-        ftb_bundle.carry.value = self.carry
-        ftb_bundle.isCall.value = self.isCall
-        ftb_bundle.isRet.value = self.isRet
-        ftb_bundle.isJalr.value = self.isJalr
-        ftb_bundle.last_may_be_rvi_call.value = self.last_may_be_rvi_call
-        ftb_bundle.always_taken_0.value = self.always_taken[0]
-        ftb_bundle.always_taken_1.value = self.always_taken[1]
-
-    @classmethod
-    def from_rand(cls):
-        return cls(valid=rand_bits(1),
-                   brSlot=FTBSlot.from_rand(),
-                   tailSlot=FTBSlot.from_rand(),
-                   pftAddr=rand_bits(4),
-                   carry=rand_bits(1),
-                   isCall=rand_bits(1),
-                   isRet=rand_bits(1),
-                   isJalr=rand_bits(1),
-                   last_may_be_rvi_call=rand_bits(1),
-                   always_taken=[rand_bits(1), rand_bits(1)])
-
 
 async def uftb_test():
     uFTB_update = UpdateBundle.from_prefix(uFTB, "io_update_")
