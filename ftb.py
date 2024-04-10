@@ -72,38 +72,51 @@ class FTBEntry:
 
         return True
 
+    def get_fallthrough_addr(self, pc):
+        return get_full_addr(pc, self.pftAddr, self.carry)
 
-    def send_to(self, ftb_bundle):
-        ftb_bundle.brSlots_0_offset.value = self.brSlot.offset
-        ftb_bundle.brSlots_0_lower.value = self.brSlot.lower
-        ftb_bundle.brSlots_0_tarStat.value = self.brSlot.tarStart
-        ftb_bundle.brSlots_0_valid.value = self.brSlot.valid
-        ftb_bundle.tailSlot_offset.value = self.tailSlot.offset
-        ftb_bundle.tailSlot_lower.value = self.tailSlot.lower
-        ftb_bundle.tailSlot_tarStat.value = self.tailSlot.tarStart
-        ftb_bundle.tailSlot_sharing.value = self.tailSlot.sharing
-        ftb_bundle.tailSlot_valid.value = self.tailSlot.valid
-        ftb_bundle.pftAddr.value = self.pftAddr
-        ftb_bundle.carry.value = self.carry
-        ftb_bundle.isCall.value = self.isCall
-        ftb_bundle.isRet.value = self.isRet
-        ftb_bundle.isJalr.value = self.isJalr
-        ftb_bundle.last_may_be_rvi_call.value = self.last_may_be_rvi_call
-        ftb_bundle.always_taken_0.value = self.always_taken[0]
-        ftb_bundle.always_taken_1.value = self.always_taken[1]
+    def __dict__(self):
+        return {
+            "brSlots_0_offset": self.brSlot.offset,
+            "brSlots_0_lower": self.brSlot.lower,
+            "brSlots_0_tarStat": self.brSlot.tarStart,
+            "brSlots_0_valid": self.brSlot.valid,
+            "tailSlot_offset": self.tailSlot.offset,
+            "tailSlot_lower": self.tailSlot.lower,
+            "tailSlot_tarStat": self.tailSlot.tarStart,
+            "tailSlot_sharing": self.tailSlot.sharing,
+            "tailSlot_valid": self.tailSlot.valid,
+            "pftAddr": self.pftAddr,
+            "carry": self.carry,
+            "isCall": self.isCall,
+            "isRet": self.isRet,
+            "isJalr": self.isJalr,
+            "last_may_be_rvi_call": self.last_may_be_rvi_call,
+            "always_taken_0": self.always_taken[0],
+            "always_taken_1": self.always_taken[1]
+        }
 
     @classmethod
-    def from_rand(cls):
-        return cls(valid=rand_bits(1),
-                   brSlot=FTBSlot.from_rand(),
-                   tailSlot=FTBSlot.from_rand(),
-                   pftAddr=rand_bits(4),
-                   carry=rand_bits(1),
-                   isCall=rand_bits(1),
-                   isRet=rand_bits(1),
-                   isJalr=rand_bits(1),
-                   last_may_be_rvi_call=rand_bits(1),
-                   always_taken=[rand_bits(1), rand_bits(1)])
+    def from_dict(self, d):
+        entry = FTBEntry()
+        entry.brSlot.offset = d["brSlots_0_offset"]
+        entry.brSlot.lower = d["brSlots_0_lower"]
+        entry.brSlot.tarStart = d["brSlots_0_tarStat"]
+        entry.brSlot.valid = d["brSlots_0_valid"]
+        entry.tailSlot.offset = d["tailSlot_offset"]
+        entry.tailSlot.lower = d["tailSlot_lower"]
+        entry.tailSlot.tarStart = d["tailSlot_tarStat"]
+        entry.tailSlot.sharing = d["tailSlot_sharing"]
+        entry.tailSlot.valid = d["tailSlot_valid"]
+        entry.pftAddr = d["pftAddr"]
+        entry.carry = d["carry"]
+        entry.isCall = d["isCall"]
+        entry.isRet = d["isRet"]
+        entry.isJalr = d["isJalr"]
+        entry.last_may_be_rvi_call = d["last_may_be_rvi_call"]
+        entry.always_taken[0] = d["always_taken_0"]
+        entry.always_taken[1] = d["always_taken_1"]
+        return entry
 
     def __str__(self):
         return f"FTBEntry(\n\tvalid={self.valid},\n\tbrSlot={self.brSlot},\n\ttailSlot={self.tailSlot},\n\tpftAddr={self.pftAddr},\n\tcarry={self.carry},\n\tisCall={self.isCall},\n\tisRet={self.isRet},\n\tisJalr={self.isJalr},\n\tlast_may_be_rvi_call={self.last_may_be_rvi_call},\n\talways_taken={self.always_taken})"

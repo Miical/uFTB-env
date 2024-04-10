@@ -1,7 +1,10 @@
 from mlvp.interface import Interface
 
 class PipelineCtrlBundle(Interface):
-    signals_list = ["s0_fire", "s1_fire", "s2_fire", "s3_fire",
+    signals_list = ["s0_fire_0", "s0_fire_1", "s0_fire_2", "s0_fire_3",
+                    "s1_fire_0", "s1_fire_1", "s1_fire_2", "s1_fire_3",
+                    "s2_fire_0", "s2_fire_1", "s2_fire_2", "s2_fire_3",
+                    "s3_fire_0", "s3_fire_1", "s3_fire_2", "s3_fire_3",
                     "s1_ready", "s2_ready", "s3_ready",
                     "s2_redirect", "s3_redirect"]
 
@@ -32,7 +35,7 @@ class FullBranchPredirectionBundle(Interface):
                     "jalr_target"]
 
 class BranchPredictionBundle(Interface):
-    signals_list = ["pc_1", "valid", "hasRedirect", "ftq_idx"]
+    signals_list = ["pc_3", "valid", "hasRedirect", "ftq_idx"]
     sub_interfaces = [
         ("full_pred", lambda dut: FullBranchPredirectionBundle.from_regex(dut, r"full_pred_\d_(.*)"))
     ]
@@ -59,10 +62,4 @@ class BranchPredictionResp(Interface):
         return self.s2.valid.value and self.s2.hasRedirect.value
     def s3_fire(self):
         return self.s3.valid.value and self.s3.hasRedirect.value
-
-
-
-
-
-
 
