@@ -64,6 +64,7 @@ class FTQ:
         pc, new_ftb_entry, br_taken_mask = update_queue_item[0], update_queue_item[1], update_queue_item[2]
         update_request = {}
 
+        update_request["valid"] = True
         update_request["bits_pc"] = pc
         update_request["ftb_entry"] = new_ftb_entry.__dict__()
         update_request["bits_br_taken_mask_0"] = 0 if len(br_taken_mask) == 0 else br_taken_mask[0]
@@ -141,7 +142,8 @@ class FTQ:
                                            inst_len,
                                            Executor.is_call_inst(branch),
                                            Executor.is_ret_inst(branch),
-                                           Executor.is_jalr_inst(branch))
+                                           Executor.is_jalr_inst(branch),
+                                           Executor.is_jal_inst(branch))
                     fallthrough_addr += 2
                     self.executor.next_inst()
                     break
@@ -179,7 +181,6 @@ class FTQ:
             print("[FTQ] Redirect Request: (target: %s)" % hex(cfi_target))
 
         return (update_request, redirect_request)
-
 
 
 if __name__ == "__main__":

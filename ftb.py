@@ -31,6 +31,7 @@ class FTBEntry:
         self.carry = 0
         self.isCall = False
         self.isRet = False
+        self.isJal = False # TODO
         self.isJalr = False
         self.last_may_be_rvi_call = False
         self.always_taken = [0, 0]
@@ -55,7 +56,7 @@ class FTBEntry:
 
         return True
 
-    def add_jmp_inst(self, start_pc, inst_pc, target_addr, inst_len, is_call, is_ret, is_jalr):
+    def add_jmp_inst(self, start_pc, inst_pc, target_addr, inst_len, is_call, is_ret, is_jalr, is_jal):
         if self.tailSlot.valid:
             return False
 
@@ -68,12 +69,34 @@ class FTBEntry:
         self.isCall = is_call
         self.isRet = is_ret
         self.isJalr = is_jalr
+        self.isJal = is_jal
         self.last_may_be_rvi_call = is_call and inst_len == 4
 
         return True
 
     def get_fallthrough_addr(self, pc):
         return get_full_addr(pc, self.pftAddr, self.carry)
+
+    def put_to_full_pred_dict(self, pc, d):
+        d["hit"] = 1
+        d["slot_valids_0"] = self.brSlot.valid
+        d["slot_valids_1"] = self.tailSlot.valid
+        d["targets_0"] = get_target_addr(pc, self.brSlot.tarStart, self.brSlot.lower, 12)
+        d["targets_1"] = get_target_addr(pc, self.tailSlot.tarStart, self.tailSlot.lower, 12 if self.tailSlot.sharing else 20)
+        d["offsets_0"] = self.brSlot.offset
+        d["offsets_1"] = self.tailSlot.offset
+        d["fallThroughErr"] = get_full_addr(pc, self.pftAddr, self.carry) <= pc
+        d["fallThroughAddr"] = get_full_addr(pc, self.pftAddr, self.carry) if not d["fallThroughErr"] else pc + (PREDICT_WIDTH_BYTES)
+        d["is_jal"] = self.isJal
+        d["is_jalr"] = self.isJalr
+        d["is_call"] = self.isCall
+        d["is_ret"] = self.isRet
+        d["is_br_sharing"] = self.tailSlot.sharing
+        d["last_may_be_rvi_call"] = self.last_may_be_rvi_call
+        d["br_taken_mask_0"] = self.always_taken[0]
+        d["br_taken_mask_1"] = self.always_taken[1]
+        d["jalr_target"] = get_target_addr(pc, self.tailSlot.tarStart, self.tailSlot.lower, 20)
+
 
     def __dict__(self):
         return {
@@ -120,3 +143,17 @@ class FTBEntry:
 
     def __str__(self):
         return f"FTBEntry(\n\tvalid={self.valid},\n\tbrSlot={self.brSlot},\n\ttailSlot={self.tailSlot},\n\tpftAddr={self.pftAddr},\n\tcarry={self.carry},\n\tisCall={self.isCall},\n\tisRet={self.isRet},\n\tisJalr={self.isJalr},\n\tlast_may_be_rvi_call={self.last_may_be_rvi_call},\n\talways_taken={self.always_taken})"
+
+class FTBProvider():
+    def __init__(self):
+        self.entries = {}
+
+    def update(self, update_request):
+        if update_request["valid"]:
+            self.entries[update_request["bits_pc"]] = FTBEntry.from_dict(update_request["ftb_entry"])
+
+    def provide_ftb_entry(self, fire, pc):
+        if fire and pc in self.entries:
+            return self.entries[pc]
+        else:
+            return None

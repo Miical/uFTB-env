@@ -22,7 +22,14 @@ def get_target_stat(pc_higher, target_higher):
     else:
         return TAR_FIT
 
+def get_target_addr(pc, target_stat, target_lower, target_lower_bits):
+    target_higher = pc >> target_lower_bits
+    if target_stat == TAR_UDF:
+        target_higher -= 1
+    elif target_stat == TAR_OVF:
+        target_higher += 1
 
+    return (target_higher << target_lower_bits) | target_lower
 
 def get_cfi_addr_from_full_pred_dict(pc, d):
     if not d["hit"]:
@@ -47,3 +54,9 @@ def get_target_from_full_pred_dict(pc, d):
         return d["jalr_target"]
     else:
         return d["fallThroughAddr"]
+
+def set_all_none_item_to_zero(d):
+    print("!!")
+    for k, v in d.items():
+        if v is None:
+            d[k] = 0

@@ -65,6 +65,10 @@ class Executor:
         return ".RET" in branch["type"]
 
     @staticmethod
+    def is_jal_inst(branch):
+        return branch["type"] == "I.JAL" or branch["type"] == "P.JAL"
+
+    @staticmethod
     def is_jalr_inst(branch):
         return ".JALR" in branch["type"] or ".JR" in branch["type"]
 

@@ -34,6 +34,7 @@ class BPUTop:
         self.s3_pc = 0
 
         self.ftq = FTQ()
+        self.ftb_provider = FTBProvider()
 
     def pipeline_assign(self):
         self.pipeline_ctrl.s0_fire_0.value = self.s0_fire
@@ -67,6 +68,35 @@ class BPUTop:
         dut_output["s2"]["valid"] = self.s2_fire
         dut_output["s3"]["valid"] = self.s3_fire
 
+        dut_output["s2"]["pc_3"] = self.s2_pc
+        dut_output["s3"]["pc_3"] = self.s3_pc
+
+        # Provide Basic FTB Prediction
+        ftb_provider_stage_enable = (False, True, True)
+
+        if self.s1_fire and ftb_provider_stage_enable[0]:
+            ftb_entry = self.ftb_provider.provide_ftb_entry(self.s1_fire, self.s1_pc)
+            if ftb_entry is not None:
+                ftb_entry.put_to_full_pred_dict(self.s1_pc, dut_output["s1"]["full_pred"])
+            else:
+                set_all_none_item_to_zero(dut_output["s1"]["full_pred"])
+
+        if self.s2_fire and ftb_provider_stage_enable[1]:
+            ftb_entry = self.ftb_provider.provide_ftb_entry(self.s2_fire, self.s2_pc)
+            if ftb_entry is not None:
+                ftb_entry.put_to_full_pred_dict(self.s2_pc, dut_output["s2"]["full_pred"])
+            else:
+                set_all_none_item_to_zero(dut_output["s2"]["full_pred"])
+
+        if self.s3_fire and ftb_provider_stage_enable[2]:
+            ftb_entry = self.ftb_provider.provide_ftb_entry(self.s3_fire, self.s3_pc)
+            if ftb_entry is not None:
+                ftb_entry.put_to_full_pred_dict(self.s3_pc, dut_output["s3"]["full_pred"])
+                dut_output["last_stage_ftb_entry"] = ftb_entry.__dict__()
+            else:
+                set_all_none_item_to_zero(dut_output["s3"]["full_pred"])
+                dut_output["last_stage_ftb_entry"] = FTBEntry().__dict__()
+
         return dut_output
 
 
@@ -79,7 +109,6 @@ class BPUTop:
         while True:
             self.pipeline_assign()
             await ClockCycles(self.dut, 1)
-
 
             dut_output = self.dut_out.collect()
             bpu_output = self.generate_bpu_output(dut_output)
@@ -95,6 +124,7 @@ class BPUTop:
 
             # Update Request
             if update_request:
+                self.ftb_provider.update(update_request)
                 self.dut_update.assign(update_request)
                 self.dut_update.valid.value = 1
             else:
@@ -127,7 +157,7 @@ async def uftb_test():
     mlvp.create_task(mlvp.start_clock(uFTB))
     mlvp.create_task(BPUTop(uFTB, uFTB_out, uFTB_update, pipeline_ctrl, enable_ctrl).run())
 
-    await ClockCycles(uFTB, 226)
+    await ClockCycles(uFTB, 2027)
 
 
 
