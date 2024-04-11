@@ -20,7 +20,7 @@ class FTBEntryBundle(Interface):
                      "always_taken_0", "always_taken_1"]
 
 class UpdateBundle(Interface):
-    signals_list = ["valid", "bits_pc"]
+    signals_list = ["valid", "bits_pc", "bits_br_taken_mask_0", "bits_br_taken_mask_1"]
 
     sub_interfaces = [
         ("ftb_entry", lambda dut: FTBEntryBundle.from_prefix(dut, "bits_ftb_entry_"))
@@ -41,11 +41,6 @@ class BranchPredictionBundle(Interface):
     ]
 
 
-    def ftb_entry_hit(self):
-        return self.full_pred.hit.value
-
-
-
 class BranchPredictionResp(Interface):
     signals_list = ["last_stage_meta"]
     sub_interfaces = [
@@ -54,12 +49,3 @@ class BranchPredictionResp(Interface):
         ("s3", lambda dut: BranchPredictionBundle.from_prefix(dut, "s3_")),
         ("last_stage_ftb_entry", lambda dut: FTBEntryBundle.from_prefix(dut, "last_stage_ftb_entry_"))
     ]
-
-
-    def s1_fire(self):
-        return self.s1.valid.value
-    def s2_fire(self):
-        return self.s2.valid.value and self.s2.hasRedirect.value
-    def s3_fire(self):
-        return self.s3.valid.value and self.s3.hasRedirect.value
-
