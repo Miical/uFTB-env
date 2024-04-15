@@ -72,7 +72,7 @@ class BPUTop:
         dut_output["s3"]["pc_3"] = self.s3_pc
 
         # Provide Basic FTB Prediction
-        ftb_provider_stage_enable = (False, True, True)
+        ftb_provider_stage_enable = (False, False, False)
 
         if self.s1_fire and ftb_provider_stage_enable[0]:
             ftb_entry = self.ftb_provider.provide_ftb_entry(self.s1_fire, self.s1_pc)
@@ -106,6 +106,8 @@ class BPUTop:
         self.dut.reset.value = 0
         await ClockCycles(self.dut, 10)
 
+        self.s0_pc = RESET_VECTOR
+
         while True:
             self.pipeline_assign()
             await ClockCycles(self.dut, 1)
@@ -113,12 +115,34 @@ class BPUTop:
             dut_output = self.dut_out.collect()
             bpu_output = self.generate_bpu_output(dut_output)
 
-            npc_gen = RESET_VECTOR
+            ftb_entry = FTBEntry.from_full_pred_dict(self.s1_pc, dut_output["s1"]["full_pred"])
+            std_ftb_entry = self.ftb_provider.provide_ftb_entry(self.s1_fire, self.s1_pc)
+
+
+            print()
+            print(f"PC: {hex(self.s1_pc)}")
+            print("Prediction: ")
+            if bpu_output["s1"]["full_pred"]["hit"]:
+                ftb_entry.print(self.s1_pc)
+            else:
+                print("No FTB Entry")
+            print("Standard FTB Entry: ")
+            if std_ftb_entry is not None:
+                std_ftb_entry.print(self.s1_pc)
+            else:
+                print("No FTB Entry")
+            print()
+
+
+
+
+            npc_gen = self.s0_pc
             next_s0_fire = 1
             next_s1_fire = 1
 
             if self.s1_fire:
-                 npc_gen = get_target_from_full_pred_dict(self.s1_pc, dut_output["s1"]["full_pred"])
+                npc_gen = get_target_from_full_pred_dict(self.s1_pc, dut_output["s1"]["full_pred"])
+                print("s1_fire", hex(npc_gen))
 
             update_request, redirect_request = self.ftq.update(bpu_output)
 
@@ -157,7 +181,7 @@ async def uftb_test():
     mlvp.create_task(mlvp.start_clock(uFTB))
     mlvp.create_task(BPUTop(uFTB, uFTB_out, uFTB_update, pipeline_ctrl, enable_ctrl).run())
 
-    await ClockCycles(uFTB, 2027)
+    await ClockCycles(uFTB, 500)
 
 
 

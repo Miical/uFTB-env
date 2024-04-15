@@ -15,6 +15,8 @@ class Executor:
         self._exec_once()
 
     def _exec_once(self):
+        print("pc", hex(self._last_exec_result["pc"]), "branch", self._last_exec_result["branch"])
+
         self._last_exec_result["pc"] = self._current_pc
 
         inst_len, branch = 0, None

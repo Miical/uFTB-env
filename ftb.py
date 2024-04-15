@@ -1,10 +1,5 @@
 from utils import *
 
-import random
-
-def rand_bits(bits_num):
-    return random.randint(0, 2**bits_num - 1)
-
 class FTBSlot:
     def __init__(self):
         self.valid = 0
@@ -13,13 +8,15 @@ class FTBSlot:
         self.tarStart = 0
         self.sharing = 0
 
-    @classmethod
-    def from_rand(cls):
-        return cls(offset=rand_bits(4), lower=rand_bits(12),
-                   tarStart=rand_bits(12), sharing=rand_bits(1), valid=rand_bits(1))
+    def print(self, pc, is_cond_branch):
+        if not self.valid:
+            print("*\tInvalid FTBSlot")
+            return
 
-    def __str__(self):
-        return f"FTBSlot(valid={self.valid}, offset={self.offset}, lower={self.lower}, tarStart={self.tarStart}, sharing={self.sharing})"
+        if is_cond_branch:
+            print(f"*\t[Conditional Branch Inst] at PC {hex(get_full_addr(pc, self.offset, False))}: Target: {hex(get_target_addr(pc, self.tarStart, self.lower, 12))}")
+        else:
+            print(f"*\t[Jump Inst] PC {hex(get_full_addr(pc, self.offset, False))}: Target: {hex(get_target_addr(pc, self.tarStart, self.lower, 20))}")
 
 
 class FTBEntry:
@@ -31,7 +28,7 @@ class FTBEntry:
         self.carry = 0
         self.isCall = False
         self.isRet = False
-        self.isJal = False # TODO
+        self.isJal = False
         self.isJalr = False
         self.last_may_be_rvi_call = False
         self.always_taken = [0, 0]
@@ -43,7 +40,7 @@ class FTBEntry:
         slot = FTBSlot()
         slot.valid = True
         slot.offset = get_part_addr(inst_pc - start_pc)
-        slot.lower = get_lower_addr(inst_pc, 12)
+        slot.lower = get_lower_addr(target_addr, 12)
         slot.tarStart = get_target_stat(start_pc >> 12, target_addr >> 12)
 
         if self.brSlot.valid:
@@ -62,7 +59,7 @@ class FTBEntry:
 
         self.tailSlot.valid = True
         self.tailSlot.offset = get_part_addr(inst_pc - start_pc)
-        self.tailSlot.lower = get_lower_addr(inst_pc, 20)
+        self.tailSlot.lower = get_lower_addr(target_addr, 20)
         self.tailSlot.tarStart = get_target_stat(start_pc >> 20, target_addr >> 20)
         self.tailSlot.sharing = False
 
@@ -141,8 +138,46 @@ class FTBEntry:
         entry.always_taken[1] = d["always_taken_1"]
         return entry
 
-    def __str__(self):
-        return f"FTBEntry(\n\tvalid={self.valid},\n\tbrSlot={self.brSlot},\n\ttailSlot={self.tailSlot},\n\tpftAddr={self.pftAddr},\n\tcarry={self.carry},\n\tisCall={self.isCall},\n\tisRet={self.isRet},\n\tisJalr={self.isJalr},\n\tlast_may_be_rvi_call={self.last_may_be_rvi_call},\n\talways_taken={self.always_taken})"
+    @classmethod
+    def from_full_pred_dict(self, pc, d):
+        entry = FTBEntry()
+        entry.brSlot.valid = d["slot_valids_0"]
+        entry.brSlot.offset = d["offsets_0"]
+        entry.brSlot.lower = get_lower_addr(d["targets_0"], 12)
+        entry.brSlot.tarStart = get_target_stat(pc >> 12, d["targets_0"] >> 12)
+        entry.tailSlot.valid = d["slot_valids_1"]
+        entry.tailSlot.offset = d["offsets_1"]
+        entry.tailSlot.sharing = d["is_br_sharing"]
+
+        if entry.tailSlot.sharing:
+            entry.tailSlot.lower = get_lower_addr(d["targets_1"], 12)
+            entry.tailSlot.tarStart = get_target_stat(pc >> 12, d["targets_1"] >> 12)
+        else:
+            entry.tailSlot.lower = get_lower_addr(d["targets_1"], 20)
+            entry.tailSlot.tarStart = get_target_stat(pc >> 20, d["targets_1"] >> 20)
+
+        entry.pftAddr = get_part_addr(d["fallThroughAddr"])
+        entry.carry = get_part_addr_carry(pc, d["fallThroughAddr"])
+        entry.isCall = d["is_call"]
+        entry.isRet = d["is_ret"]
+        entry.isJal = d["is_jal"]
+        entry.isJalr = d["is_jalr"]
+        entry.last_may_be_rvi_call = d["last_may_be_rvi_call"]
+        entry.always_taken[0] = d["br_taken_mask_0"]
+        entry.always_taken[1] = d["br_taken_mask_1"]
+
+        return entry
+
+
+    def print(self, pc):
+        print(f"[FTBEntry at {hex(pc)}]")
+        print(f"* Slots:")
+        self.brSlot.print(pc, True)
+        self.tailSlot.print(pc, self.tailSlot.sharing)
+        print("* Other Info:")
+        print(f"*\tFallthrough Addr: {hex(self.get_fallthrough_addr(pc))}")
+        print(f"*\tisCall: {self.isCall}, isRet: {self.isRet}, isJalr: {self.isJalr}, isJal: {self.isJal}")
+        print(f"*\tlast_may_be_rvi_call: {self.last_may_be_rvi_call}, always_taken: {self.always_taken}")
 
 class FTBProvider():
     def __init__(self):

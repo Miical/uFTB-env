@@ -87,6 +87,8 @@ class FTQ:
     def execute_this_pred_block(self, pc, full_pred):
         end_pc = full_pred["fallThroughAddr"]
         cfi_addr = get_cfi_addr_from_full_pred_dict(pc, full_pred)
+        if cfi_addr:
+            print("cfi_addr", hex(cfi_addr))
 
         all_branches = []
         br_taken_mask = []
@@ -98,10 +100,10 @@ class FTQ:
             if branch is not None:
                 br_taken_mask.append(branch["taken"])
                 all_branches.append(branch)
-            pc += inst_len
 
             pred_cfi_valid = cfi_addr is not None and pc == cfi_addr
             exec_cfi_valid = branch is not None and branch["taken"]
+            pc += inst_len
 
             if pred_cfi_valid and exec_cfi_valid:
                 break
@@ -109,7 +111,6 @@ class FTQ:
                 redirect_addr = pc
                 break
             elif not pred_cfi_valid and exec_cfi_valid:
-                # redirect_addr = pc
                 redirect_addr = branch["target"]
                 break
 
@@ -154,6 +155,9 @@ class FTQ:
         ftb_entry.valid = True
         ftb_entry.pftAddr = get_part_addr(fallthrough_addr)
         ftb_entry.carry = get_part_addr_carry(pc, ftb_entry.pftAddr)
+
+        print("gen ftb:")
+        ftb_entry.print(pc)
 
         return ftb_entry, br_taken_mask
 

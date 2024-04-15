@@ -7,12 +7,12 @@ def get_part_addr_carry(pc, pftaddr):
     return ((pftaddr - pc) >> (INST_OFFSET_BITS + PREDICT_WIDTH_OFFSET_BITS)) & 1
 
 def get_full_addr(pc, part_addr, carry):
-    return (pc & ~((1 << INST_OFFSET_BITS) - 1)) | (part_addr << INST_OFFSET_BITS) + (carry << (INST_OFFSET_BITS + PREDICT_WIDTH_OFFSET_BITS))
+    return pc + (part_addr << INST_OFFSET_BITS) + (carry << (INST_OFFSET_BITS + PREDICT_WIDTH_OFFSET_BITS))
 
 
 
 def get_lower_addr(pc, bits):
-    return pc & ((1 << bits) - 1)
+    return (pc >> INST_OFFSET_BITS) & ((1 << bits) - 1)
 
 def get_target_stat(pc_higher, target_higher):
     if target_higher < pc_higher:
@@ -23,13 +23,13 @@ def get_target_stat(pc_higher, target_higher):
         return TAR_FIT
 
 def get_target_addr(pc, target_stat, target_lower, target_lower_bits):
-    target_higher = pc >> target_lower_bits
+    target_higher = pc >> (target_lower_bits + INST_OFFSET_BITS)
     if target_stat == TAR_UDF:
         target_higher -= 1
     elif target_stat == TAR_OVF:
         target_higher += 1
 
-    return (target_higher << target_lower_bits) | target_lower
+    return (target_higher << (target_lower_bits + INST_OFFSET_BITS)) | (target_lower << INST_OFFSET_BITS)
 
 def get_cfi_addr_from_full_pred_dict(pc, d):
     if not d["hit"]:
@@ -51,12 +51,12 @@ def get_target_from_full_pred_dict(pc, d):
     elif d["slot_valids_1"] and d["br_taken_mask_1"] and d["is_br_sharing"]:
         return d["targets_1"]
     elif d["slot_valids_1"] and not d["is_br_sharing"]:
-        return d["jalr_target"]
+        # return d["jalr_target"]
+        return d["targets_1"]
     else:
         return d["fallThroughAddr"]
 
 def set_all_none_item_to_zero(d):
-    print("!!")
     for k, v in d.items():
         if v is None:
             d[k] = 0
