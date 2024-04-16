@@ -1,6 +1,8 @@
 from BRTParser import BRTParser
 
 class Executor:
+    """Get program real execution instruction flow."""
+
     def __init__(self, filename="ready-to-run/microbench.bin", reset_vector=0x80000000):
         self._executor = BRTParser().fetch(filename)
         self._current_branch = next(self._executor)
@@ -14,8 +16,17 @@ class Executor:
 
         self._exec_once()
 
+    def current_inst(self):
+        """Return current instruction information."""
+        return self._last_exec_result["pc"], self._last_exec_result["inst_len"], self._last_exec_result["branch"]
+
+    def next_inst(self):
+        """Move to next instruction."""
+        self._exec_once()
+
     def _exec_once(self):
-        print("pc", hex(self._last_exec_result["pc"]), "branch", self._last_exec_result["branch"])
+        print(f"- Executor: pc: {hex(self._last_exec_result['pc'])}, inst_len: {self._last_exec_result['inst_len']},\
+                branch: {self._last_exec_result['branch']}")
 
         self._last_exec_result["pc"] = self._current_pc
 
@@ -36,12 +47,6 @@ class Executor:
 
         self._last_exec_result["inst_len"] = inst_len
         self._last_exec_result["branch"] = branch
-
-    def current_inst(self):
-        return self._last_exec_result["pc"], self._last_exec_result["inst_len"], self._last_exec_result["branch"]
-
-    def next_inst(self):
-        self._exec_once()
 
     @staticmethod
     def random_inst_len(pc):

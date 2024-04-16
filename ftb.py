@@ -14,9 +14,9 @@ class FTBSlot:
             return
 
         if is_cond_branch:
-            print(f"*\t[Conditional Branch Inst] at PC {hex(get_full_addr(pc, self.offset, False))}: Target: {hex(get_target_addr(pc, self.tarStart, self.lower, 12))}")
+            print(f"*\t[Conditional Branch Inst] at PC {hex(get_slot_addr(pc, self.offset))}: Target: {hex(get_target_addr(pc, self.tarStart, self.lower, 12))}")
         else:
-            print(f"*\t[Jump Inst] PC {hex(get_full_addr(pc, self.offset, False))}: Target: {hex(get_target_addr(pc, self.tarStart, self.lower, 20))}")
+            print(f"*\t[Jump Inst] PC {hex(get_slot_addr(pc, self.offset))}: Target: {hex(get_target_addr(pc, self.tarStart, self.lower, 20))}")
 
 
 class FTBEntry:
@@ -39,7 +39,7 @@ class FTBEntry:
 
         slot = FTBSlot()
         slot.valid = True
-        slot.offset = get_part_addr(inst_pc - start_pc)
+        slot.offset = get_slot_offset(start_pc, inst_pc)
         slot.lower = get_lower_addr(target_addr, 12)
         slot.tarStart = get_target_stat(start_pc >> 12, target_addr >> 12)
 
@@ -58,7 +58,7 @@ class FTBEntry:
             return False
 
         self.tailSlot.valid = True
-        self.tailSlot.offset = get_part_addr(inst_pc - start_pc)
+        self.tailSlot.offset = get_slot_offset(start_pc, inst_pc)
         self.tailSlot.lower = get_lower_addr(target_addr, 20)
         self.tailSlot.tarStart = get_target_stat(start_pc >> 20, target_addr >> 20)
         self.tailSlot.sharing = False
@@ -71,9 +71,6 @@ class FTBEntry:
 
         return True
 
-    def get_fallthrough_addr(self, pc):
-        return get_full_addr(pc, self.pftAddr, self.carry)
-
     def put_to_full_pred_dict(self, pc, d):
         d["hit"] = 1
         d["slot_valids_0"] = self.brSlot.valid
@@ -82,8 +79,8 @@ class FTBEntry:
         d["targets_1"] = get_target_addr(pc, self.tailSlot.tarStart, self.tailSlot.lower, 12 if self.tailSlot.sharing else 20)
         d["offsets_0"] = self.brSlot.offset
         d["offsets_1"] = self.tailSlot.offset
-        d["fallThroughErr"] = get_full_addr(pc, self.pftAddr, self.carry) <= pc
-        d["fallThroughAddr"] = get_full_addr(pc, self.pftAddr, self.carry) if not d["fallThroughErr"] else pc + (PREDICT_WIDTH_BYTES)
+        d["fallThroughErr"] = get_fallthrough_addr(pc, self.pftAddr, self.carry) <= pc
+        d["fallThroughAddr"] = get_fallthrough_addr(pc, self.pftAddr, self.carry) if not d["fallThroughErr"] else pc + (PREDICT_WIDTH_BYTES)
         d["is_jal"] = self.isJal
         d["is_jalr"] = self.isJalr
         d["is_call"] = self.isCall
@@ -156,8 +153,8 @@ class FTBEntry:
             entry.tailSlot.lower = get_lower_addr(d["targets_1"], 20)
             entry.tailSlot.tarStart = get_target_stat(pc >> 20, d["targets_1"] >> 20)
 
-        entry.pftAddr = get_part_addr(d["fallThroughAddr"])
-        entry.carry = get_part_addr_carry(pc, d["fallThroughAddr"])
+        entry.pftAddr = get_pftaddr(d["fallThroughAddr"])
+        entry.carry = get_pftaddr_carry(pc, d["fallThroughAddr"])
         entry.isCall = d["is_call"]
         entry.isRet = d["is_ret"]
         entry.isJal = d["is_jal"]
@@ -175,7 +172,7 @@ class FTBEntry:
         self.brSlot.print(pc, True)
         self.tailSlot.print(pc, self.tailSlot.sharing)
         print("* Other Info:")
-        print(f"*\tFallthrough Addr: {hex(self.get_fallthrough_addr(pc))}")
+        print(f"*\tFallthrough Addr: {hex(get_fallthrough_addr(pc, self.pftAddr, self.carry))}")
         print(f"*\tisCall: {self.isCall}, isRet: {self.isRet}, isJalr: {self.isJalr}, isJal: {self.isJal}")
         print(f"*\tlast_may_be_rvi_call: {self.last_may_be_rvi_call}, always_taken: {self.always_taken}")
 
