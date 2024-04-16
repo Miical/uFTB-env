@@ -144,6 +144,7 @@ class BPUTop:
                     ftb_entry.print(self.s1_pc)
                 else:
                     print("No FTB Entry")
+                print("br_taken_mask:", bpu_output["s1"]["full_pred"]["br_taken_mask_0"], bpu_output["s1"]["full_pred"]["br_taken_mask_1"])
 
                 print("FTB Entry in FTB Provider: ")
                 if std_ftb_entry:
@@ -191,7 +192,7 @@ async def uftb_test():
     mlvp.create_task(mlvp.start_clock(uFTB))
     mlvp.create_task(BPUTop(uFTB, uFTB_out, uFTB_update, pipeline_ctrl, enable_ctrl).run())
 
-    await ClockCycles(uFTB, 200)
+    await ClockCycles(uFTB, 3000)
 
 
 if __name__ == "__main__":

@@ -113,7 +113,7 @@ class FTQ:
                 print("Predicition is correct")
             else:
                 print("Prediction is wrong, redirect to %s" % hex(redirect_addr))
-            new_ftb_entry = self.update_ftb_entry_from_branches(entry.ftb, all_branches, br_taken_mask)
+            new_ftb_entry = self.update_ftb_entry_from_branches(entry.pc, entry.ftb, all_branches, br_taken_mask)
             self.update_queue.append((entry.pc, new_ftb_entry, br_taken_mask))
             if redirect_addr is not None:
                 self.redirect_queue.append((redirect_addr))
@@ -148,15 +148,22 @@ class FTQ:
 
         return redirect_request
 
-    def update_ftb_entry_from_branches(self, ftb_entry, branches, br_taken_mask):
+    def update_ftb_entry_from_branches(self, pc, ftb_entry, branches, br_taken_mask):
+        # update always_taken
         if len(br_taken_mask) >= 1:
             ftb_entry.always_taken[0] &= br_taken_mask[0]
         if len(br_taken_mask) >= 2:
             ftb_entry.always_taken[1] &= br_taken_mask[1]
 
+        # update jmp target
+        for branch in branches:
+            if Executor.is_jump_inst(branch):
+                ftb_entry.tailSlot.lower = get_lower_addr(branch["target"], 20)
+                ftb_entry.tailSlot.tarStart = get_target_stat(pc >> 20, branch["target"] >> 20)
+
         return ftb_entry
 
-    def record_branch_helper(self, branch, cfi_addr):
+    def record_branch_helper(self, branch, cfi_addr, cfi_target):
         if Executor.is_cond_branch_inst(branch):
             correct = None
             if branch["taken"]:
@@ -165,7 +172,7 @@ class FTQ:
                 correct = cfi_addr is None or branch["pc"] != cfi_addr
             pred_stat.record_cond_branch(branch["pc"], correct)
         else:
-            correct = cfi_addr is not None and branch["pc"] == cfi_addr
+            correct = cfi_addr is not None and branch["pc"] == cfi_addr and branch["target"] == cfi_target
             pred_stat.record_jmp_branch(branch["pc"], PredictionStatistician.get_type(Executor.is_call_inst(branch),
                                                                                         Executor.is_ret_inst(branch),
                                                                                         Executor.is_jalr_inst(branch),
@@ -175,6 +182,7 @@ class FTQ:
     def execute_this_pred_block(self, pc, full_pred):
         end_pc = full_pred["fallThroughAddr"]
         cfi_addr = get_cfi_addr_from_full_pred_dict(pc, full_pred)
+        cfi_target = get_target_from_full_pred_dict(pc, full_pred)
 
         all_branches = []
         br_taken_mask = []
@@ -185,13 +193,15 @@ class FTQ:
             if branch is not None:
                 br_taken_mask.append(branch["taken"])
                 all_branches.append(branch)
-                self.record_branch_helper(branch, cfi_addr)
+                self.record_branch_helper(branch, cfi_addr, cfi_target)
 
             pred_cfi_valid = cfi_addr is not None and pc == cfi_addr
             exec_cfi_valid = branch is not None and branch["taken"]
             pc += inst_len
 
             if pred_cfi_valid and exec_cfi_valid:
+                if cfi_target != branch["target"]:
+                    redirect_addr = branch["target"]
                 break
             elif pred_cfi_valid and not exec_cfi_valid:
                 redirect_addr = pc
@@ -278,7 +288,8 @@ class FTQ:
         update_request, redirect_request = None, None
         if self.update_queue:
             update_request = self.generate_update_request(self.update_queue.pop(0))
-            print("Send Update Request: %s" % hex(update_request['bits_pc']))
+            print("Send Update Request: %s" % hex(update_request['bits_pc']), \
+                  "br_taken_mask:", update_request["bits_br_taken_mask_0"], update_request["bits_br_taken_mask_1"])
 
         if self.redirect_queue:
             cfi_target = self.redirect_queue.pop(0)
