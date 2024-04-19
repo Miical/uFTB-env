@@ -71,3 +71,9 @@ def set_all_none_item_to_zero(d):
     for k, v in d.items():
         if v is None:
             d[k] = 0
+
+def parse_uftb_meta(meta):
+    return {
+        "pred_way": meta >> 1,
+        "hit": meta & 1
+    }

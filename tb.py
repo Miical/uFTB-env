@@ -4,6 +4,7 @@ from mlvp.reg import *
 from mlvp.interface import *
 from mlvp.triggers import *
 
+from uftb_model import uFTBModel
 from ftq import *
 from bundle import *
 
@@ -28,8 +29,12 @@ class BPUTop:
         self.s1_pc = 0
         self.s2_pc = 0
         self.s3_pc = 0
+        self.s1_hit_way = 0
+        self.s2_hit_way = 0
+        self.s3_hit_way = 0
 
         self.ftq = FTQ()
+        self.uftb_model = uFTBModel()
         self.ftb_provider = FTBProvider()
 
     def pipeline_assign(self):
@@ -53,11 +58,24 @@ class BPUTop:
         self.pipeline_ctrl.s3_fire_2.value = self.s3_fire
         self.pipeline_ctrl.s3_fire_3.value = self.s3_fire
 
+
+        self.dut.io_s0_fire_0.value = self.s0_fire
+        self.dut.io_s0_fire_1.value = self.s0_fire
+        self.dut.io_s0_fire_2.value = self.s0_fire
+        self.dut.io_s0_fire_3.value = self.s0_fire
+        self.dut.io_s1_fire_0.value = 1
+        self.dut.io_s2_fire_0.value = 1
+        self.dut.io_s0_fire_0.xdata.WriteOnRise()
+        self.dut.io_s0_fire_1.xdata.WriteOnRise()
+        self.dut.io_s0_fire_2.xdata.WriteOnRise()
+        self.dut.io_s0_fire_3.xdata.WriteOnRise()
+        self.dut.io_s1_fire_0.xdata.WriteOnRise()
+        self.dut.io_s2_fire_0.xdata.WriteOnRise()
+
         self.dut.io_in_bits_s0_pc_0.value = self.s0_pc
         self.dut.io_in_bits_s0_pc_1.value = self.s0_pc
         self.dut.io_in_bits_s0_pc_2.value = self.s0_pc
         self.dut.io_in_bits_s0_pc_3.value = self.s0_pc
-
         self.dut.io_in_bits_s0_pc_0.xdata.WriteOnRise()
         self.dut.io_in_bits_s0_pc_1.xdata.WriteOnRise()
         self.dut.io_in_bits_s0_pc_2.xdata.WriteOnRise()
@@ -120,6 +138,8 @@ class BPUTop:
             self.s2_pc = self.s1_pc
             self.s1_pc = self.s0_pc
 
+            self.s3_hit_way = self.s2_hit_way
+            self.s2_hit_way = self.s1_hit_way
 
             npc_gen = self.s0_pc
             next_s0_fire = 1
@@ -127,18 +147,27 @@ class BPUTop:
             s2_flush = False
             s3_flush = False
 
+            print("-" * 30)
 
             # Get dut output and generate bpu output
             dut_output = self.dut_out.collect()
             bpu_output = self.generate_bpu_output(dut_output)
 
             ftb_entry = FTBEntry.from_full_pred_dict(self.s1_pc, dut_output["s1"]["full_pred"])
+            model_output = self.uftb_model.generate_output(self.s1_fire, self.s1_pc)
             std_ftb_entry = self.ftb_provider.provide_ftb_entry(self.s1_fire, self.s1_pc)
 
-            print("-" * 30)
+            if model_output:
+                self.s1_hit_way = model_output[2]
+            else:
+                self.s1_hit_way = None
+
             if self.s1_fire:
-                print("[BPU]")
+                # print("[BPU]")
                 print("New prediction at", hex(self.s1_pc))
+                if bpu_output["s1"]["full_pred"]["hit"]:
+                    print("Dut Hit")
+
                 print("FTB Entry in pred result: ")
                 if bpu_output["s1"]["full_pred"]["hit"]:
                     ftb_entry.print(self.s1_pc)
@@ -146,11 +175,42 @@ class BPUTop:
                     print("No FTB Entry")
                 print("br_taken_mask:", bpu_output["s1"]["full_pred"]["br_taken_mask_0"], bpu_output["s1"]["full_pred"]["br_taken_mask_1"])
 
-                print("FTB Entry in FTB Provider: ")
-                if std_ftb_entry:
-                    std_ftb_entry.print(self.s1_pc)
+                # print("FTB Entry in FTB Provider: ")
+                # if std_ftb_entry:
+                #     std_ftb_entry.print(self.s1_pc)
+                # else:
+                #     print("No FTB Entry")
+
+                print("FTB Entry in uFTB Model: ")
+                if model_output:
+                    model_output[0].print(self.s1_pc)
+                    print("br_taken_mask:", model_output[1])
                 else:
                     print("No FTB Entry")
+
+                # Compare dut output and uFTB model output
+                expected_hit = model_output is not None
+                actual_hit = bpu_output["s1"]["full_pred"]["hit"]
+                # print("last_stage_meta", parse_uftb_meta(dut_output["last_stage_meta"]))
+                # print("hit_way:", self.s3_hit_way)
+                if expected_hit != actual_hit:
+                    print("Error: Hit mismatch")
+                    print("Expected:", expected_hit)
+                    print("Actual:", actual_hit)
+                    input()
+                if parse_uftb_meta(dut_output["last_stage_meta"])["hit"] or self.s3_hit_way is not None:
+                    expected_hit_way = self.s3_hit_way
+                    actual_hit_way = parse_uftb_meta(dut_output["last_stage_meta"])["pred_way"]
+                    if expected_hit_way != actual_hit_way:
+                        print("Error: Hit way mismatch")
+                        print("Expected:", expected_hit_way)
+                        print("Actual:", actual_hit_way)
+                        input()
+
+                # assert(expected_hit == actual_hit)
+
+
+
 
             # Forward to FTQ and get update and redirect request
             if self.s1_fire:
@@ -159,6 +219,7 @@ class BPUTop:
 
             ## Update Request
             if update_request:
+                self.uftb_model.update(update_request)
                 self.ftb_provider.update(update_request)
                 self.dut_update.assign(update_request)
                 self.dut_update.valid.value = 1
@@ -192,7 +253,7 @@ async def uftb_test():
     mlvp.create_task(mlvp.start_clock(uFTB))
     mlvp.create_task(BPUTop(uFTB, uFTB_out, uFTB_update, pipeline_ctrl, enable_ctrl).run())
 
-    await ClockCycles(uFTB, 3000)
+    await ClockCycles(uFTB, 200)
 
 
 if __name__ == "__main__":
