@@ -11,6 +11,31 @@ from bundle import *
 uFTB = DUTFauFTB()
 uFTB.init_clock("clock")
 
+uFTB.io_s0_fire_0.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
+uFTB.io_s0_fire_1.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
+uFTB.io_s0_fire_2.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
+uFTB.io_s0_fire_3.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
+uFTB.io_s1_fire_0.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
+uFTB.io_s2_fire_0.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
+uFTB.io_in_bits_s0_pc_0.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
+uFTB.io_in_bits_s0_pc_1.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
+uFTB.io_in_bits_s0_pc_2.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
+uFTB.io_in_bits_s0_pc_3.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
+
+
+def compare_uftb_full_pred(uftb_output, std_output):
+    need_compare = ["hit", "slot_valids_0", "slot_valids_1", "targets_0", "targets_1",
+                    "offsets_0", "offsets_1", "fallThroughAddr", "is_br_sharing",
+                    "br_taken_mask_0", "br_taken_mask_1"]
+    for key in need_compare:
+        if std_output[key] != uftb_output[key]:
+            print(f"Error: {key} mismatch")
+            print(f"Expected: {std_output[key]}")
+            print(f"Actual: {uftb_output[key]}")
+            exit(1)
+            return False
+
+
 
 class BPUTop:
     def __init__(self, dut, dut_out: BranchPredictionResp, dut_update: UpdateBundle, pipeline_ctrl: PipelineCtrlBundle, enable_ctrl: EnableCtrlBundle):
@@ -65,21 +90,11 @@ class BPUTop:
         self.dut.io_s0_fire_3.value = self.s0_fire
         self.dut.io_s1_fire_0.value = 1
         self.dut.io_s2_fire_0.value = 1
-        self.dut.io_s0_fire_0.xdata.WriteOnRise()
-        self.dut.io_s0_fire_1.xdata.WriteOnRise()
-        self.dut.io_s0_fire_2.xdata.WriteOnRise()
-        self.dut.io_s0_fire_3.xdata.WriteOnRise()
-        self.dut.io_s1_fire_0.xdata.WriteOnRise()
-        self.dut.io_s2_fire_0.xdata.WriteOnRise()
 
         self.dut.io_in_bits_s0_pc_0.value = self.s0_pc
         self.dut.io_in_bits_s0_pc_1.value = self.s0_pc
         self.dut.io_in_bits_s0_pc_2.value = self.s0_pc
         self.dut.io_in_bits_s0_pc_3.value = self.s0_pc
-        self.dut.io_in_bits_s0_pc_0.xdata.WriteOnRise()
-        self.dut.io_in_bits_s0_pc_1.xdata.WriteOnRise()
-        self.dut.io_in_bits_s0_pc_2.xdata.WriteOnRise()
-        self.dut.io_in_bits_s0_pc_3.xdata.WriteOnRise()
 
     def generate_bpu_output(self, dut_output):
         dut_output["s1"]["valid"] = self.s1_fire
@@ -163,7 +178,7 @@ class BPUTop:
                 self.s1_hit_way = None
 
             if self.s1_fire:
-                # print("[BPU]")
+                print("[BPU]")
                 print("New prediction at", hex(self.s1_pc))
                 if bpu_output["s1"]["full_pred"]["hit"]:
                     print("Dut Hit")
@@ -187,6 +202,13 @@ class BPUTop:
                     print("br_taken_mask:", model_output[1])
                 else:
                     print("No FTB Entry")
+
+                if model_output:
+                    std_full_pred = {}
+                    model_output[0].put_to_full_pred_dict(self.s1_pc, std_full_pred)
+                    std_full_pred["br_taken_mask_0"] = model_output[1][0]
+                    std_full_pred["br_taken_mask_1"] = model_output[1][1]
+                    compare_uftb_full_pred(bpu_output["s1"]["full_pred"], std_full_pred)
 
                 # Compare dut output and uFTB model output
                 expected_hit = model_output is not None
@@ -253,7 +275,7 @@ async def uftb_test():
     mlvp.create_task(mlvp.start_clock(uFTB))
     mlvp.create_task(BPUTop(uFTB, uFTB_out, uFTB_update, pipeline_ctrl, enable_ctrl).run())
 
-    await ClockCycles(uFTB, 200)
+    await ClockCycles(uFTB, 50000)
 
 
 if __name__ == "__main__":

@@ -31,8 +31,8 @@ class PLRU:
         return pos
 
 class TwoBitsCounter:
-    def __init__(self):
-        self.counter = 0
+    def __init__(self, init_value=2):
+        self.counter = init_value
 
     def update(self, taken):
         if taken:
@@ -64,10 +64,10 @@ class uFTBModel:
             print(f"way {i}: valid: {self.ftb_ways[i].valid}, tag: {hex(self.ftb_ways[i].tag << 1)}")
 
     def generate_output(self, s1_fire, s1_pc):
-        # print(self.replacer_update_queue)
-        # print(self.replacer_update_queue2)
-        # print(self.update_queue)
-        # self.print_all_ftb_ways()
+        print(self.replacer_update_queue)
+        print(self.replacer_update_queue2)
+        print(self.update_queue)
+        self.print_all_ftb_ways()
 
         # Process replacer update
         new_replacer_update_queue = []
@@ -90,6 +90,16 @@ class uFTBModel:
         print(f"replacer: {self.replacer.get_lru_way()}")
 
         # process update request
+        for i in range(len(self.update_queue)):
+            selected_way = self.update_queue[i][2]
+            if self.update_queue[i][1] == 1:
+                if selected_way is None:
+                    selected_way = self.replacer.get_lru_way()
+                    print(f"victim way is {selected_way}, tag: {hex(self.ftb_ways[selected_way].tag << 1)}, valid: {self.ftb_ways[selected_way].valid}")
+                self.update_queue[i] = (self.update_queue[i][0], self.update_queue[i][1], selected_way)
+                self.replacer_update_queue2.insert(0, (selected_way, 0))
+                print(f"Append way {selected_way}")
+
         new_update_queue = []
         for i in range(len(self.update_queue)):
             if self.update_queue[i][1] == 0:
@@ -98,6 +108,7 @@ class uFTBModel:
                 selected_way = self.update_queue[i][2]
                 if self.update_queue[i][1] == 2:
                     selected_way = self.find_hit_way(self.update_queue[i][0]['bits_pc'])
+
                     for j in range(len(self.update_queue)):
                         if self.update_queue[j][1] == 1:
                             if uFTBWay.get_tag(self.update_queue[i][0]['bits_pc']) == uFTBWay.get_tag(self.update_queue[j][0]['bits_pc']):
@@ -105,12 +116,6 @@ class uFTBModel:
                                     selected_way = self.update_queue[j][2]
                                     break
                     print(f"Hit selected way is {selected_way}")
-                elif self.update_queue[i][1] == 1:
-                    if selected_way is None:
-                        selected_way = self.replacer.get_lru_way()
-                        print(f"victim way is {selected_way}, tag: {hex(self.ftb_ways[selected_way].tag << 1)}, valid: {self.ftb_ways[selected_way].valid}")
-                    self.replacer_update_queue2.insert(0, (selected_way, 0))
-                    print(f"Append way {selected_way}")
                 new_update_queue.append((self.update_queue[i][0], self.update_queue[i][1] - 1, selected_way))
         self.update_queue = new_update_queue
 
@@ -127,6 +132,9 @@ class uFTBModel:
 
         ftb_entry = self.ftb_ways[hit_way].ftb_entry
         br_taken_mask = [self.counters[hit_way][0].get_prediction(), self.counters[hit_way][1].get_prediction()]
+        for i in range(2):
+            if ftb_entry.always_taken[i]:
+                br_taken_mask[i] = 1
         return ftb_entry, br_taken_mask, hit_way
 
     def get_update_way(self, pc):
@@ -152,16 +160,19 @@ class uFTBModel:
             return
 
         need_to_update = [False, False]
-        if update_request["ftb_entry"]["brSlots_0_valid"] and not update_request["ftb_entry"]["always_taken_0"]:
-            need_to_update[0] = True
-        if update_request["ftb_entry"]["tailSlot_valid"] and not update_request["ftb_entry"]["always_taken_1"] \
-                                                         and update_request["ftb_entry"]["tailSlot_sharing"]:
-            need_to_update[1] = True
+        brslot_valid = [update_request["ftb_entry"]["brSlots_0_valid"], update_request["ftb_entry"]["tailSlot_valid"] and update_request["ftb_entry"]["tailSlot_sharing"]]
+        br_taken_mask = [update_request["bits_br_taken_mask_0"], update_request["bits_br_taken_mask_1"]]
+        always_taken = [update_request["ftb_entry"]["always_taken_0"], update_request["ftb_entry"]["always_taken_1"]]
 
-        if need_to_update[0]:
-            self.counters[selected_way][0].update(update_request["bits_br_taken_mask_0"])
-        if need_to_update[1]:
-            self.counters[selected_way][1].update(update_request["bits_br_taken_mask_1"])
+        cfi_pos = 0 if br_taken_mask[0] else (1 if br_taken_mask[1] else 2)
+        for i in range(2):
+            need_to_update[i] = i <= cfi_pos \
+                                and not always_taken[i] \
+                                and brslot_valid[i]
+
+        for i in range(2):
+            if need_to_update[i]:
+                self.counters[selected_way][i].update(br_taken_mask[i])
 
     def update_all(self, update_request, selected_way):
         # self.replacer_update_queue.append((self.get_update_way(update_request['bits_pc']), 0))
