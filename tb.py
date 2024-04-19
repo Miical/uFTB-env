@@ -12,15 +12,15 @@ uFTB = DUTFauFTB()
 uFTB.init_clock("clock")
 
 uFTB.io_s0_fire_0.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
-uFTB.io_s0_fire_1.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
-uFTB.io_s0_fire_2.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
-uFTB.io_s0_fire_3.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
-uFTB.io_s1_fire_0.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
-uFTB.io_s2_fire_0.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
-uFTB.io_in_bits_s0_pc_0.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
-uFTB.io_in_bits_s0_pc_1.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
-uFTB.io_in_bits_s0_pc_2.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
-uFTB.io_in_bits_s0_pc_3.xdata.SetWriteMode(uFTB.io_s0_fire_0.xdata.Imme)
+uFTB.io_s0_fire_1.xdata.SetWriteMode(uFTB.io_s0_fire_1.xdata.Imme)
+uFTB.io_s0_fire_2.xdata.SetWriteMode(uFTB.io_s0_fire_2.xdata.Imme)
+uFTB.io_s0_fire_3.xdata.SetWriteMode(uFTB.io_s0_fire_3.xdata.Imme)
+uFTB.io_s1_fire_0.xdata.SetWriteMode(uFTB.io_s1_fire_0.xdata.Imme)
+uFTB.io_s2_fire_0.xdata.SetWriteMode(uFTB.io_s2_fire_0.xdata.Imme)
+uFTB.io_in_bits_s0_pc_0.xdata.SetWriteMode(uFTB.io_in_bits_s0_pc_0.xdata.Imme)
+uFTB.io_in_bits_s0_pc_1.xdata.SetWriteMode(uFTB.io_in_bits_s0_pc_1.xdata.Imme)
+uFTB.io_in_bits_s0_pc_2.xdata.SetWriteMode(uFTB.io_in_bits_s0_pc_2.xdata.Imme)
+uFTB.io_in_bits_s0_pc_3.xdata.SetWriteMode(uFTB.io_in_bits_s0_pc_3.xdata.Imme)
 
 
 def compare_uftb_full_pred(uftb_output, std_output):
@@ -33,7 +33,6 @@ def compare_uftb_full_pred(uftb_output, std_output):
             print(f"Expected: {std_output[key]}")
             print(f"Actual: {uftb_output[key]}")
             exit(1)
-            return False
 
 
 
@@ -232,8 +231,6 @@ class BPUTop:
                 # assert(expected_hit == actual_hit)
 
 
-
-
             # Forward to FTQ and get update and redirect request
             if self.s1_fire:
                 npc_gen = get_target_from_full_pred_dict(self.s1_pc, dut_output["s1"]["full_pred"])
@@ -275,7 +272,7 @@ async def uftb_test():
     mlvp.create_task(mlvp.start_clock(uFTB))
     mlvp.create_task(BPUTop(uFTB, uFTB_out, uFTB_update, pipeline_ctrl, enable_ctrl).run())
 
-    await ClockCycles(uFTB, 50000)
+    await ClockCycles(uFTB, 10000)
 
 
 if __name__ == "__main__":

@@ -1,18 +1,10 @@
 from ftb import *
 
-class uFTBWay:
-    def __init__(self):
-        self.valid = 0
-        self.tag = 0
-        self.ftb_entry = FTBEntry()
-
-    @staticmethod
-    def get_tag(pc):
-        return pc >> INST_OFFSET_BITS & ((1 << UFTB_TAG_SIZE) - 1)
-
 import math
 
 class PLRU:
+    """Pseudo Least Recently Used replacement policy"""
+
     def __init__(self, ways_num):
         self.ways_num = ways_num
         self.bits_layer_num = math.ceil(math.log2(ways_num))
@@ -24,13 +16,22 @@ class PLRU:
             self.bits[i][pos] = 0 if way & (1 << (self.bits_layer_num - i - 1)) else 1
             pos = pos * 2 + (0 if self.bits[i][pos] else 1)
 
-    def get_lru_way(self):
+    def get(self):
         pos = 0
         for i in range(self.bits_layer_num):
             pos = pos * 2 + self.bits[i][pos]
         return pos
 
 class TwoBitsCounter:
+    """Two bit saturation counter
+    00 <-> 01 <-> 10 <-> 11
+
+    00: Strongly not taken
+    01: Weakly not taken
+    10: Weakly taken
+    11: Strongly taken
+    """
+
     def __init__(self, init_value=2):
         self.counter = init_value
 
@@ -43,119 +44,118 @@ class TwoBitsCounter:
     def get_prediction(self):
         return 1 if self.counter > 1 else 0
 
+class uFTBWay:
+    def __init__(self):
+        self.valid = 0
+        self.tag = 0
+        self.ftb_entry = FTBEntry()
+
+    @staticmethod
+    def get_tag(pc):
+        return pc >> INST_OFFSET_BITS & ((1 << UFTB_TAG_SIZE) - 1)
+
 class uFTBModel:
     def __init__(self):
         self.replacer = PLRU(UFTB_WAYS_NUM)
-        self.ftb_ways = [uFTBWay() for _ in range(UFTB_WAYS_NUM)]
+        self.ftbways = [uFTBWay() for _ in range(UFTB_WAYS_NUM)]
         self.counters = [[TwoBitsCounter(), TwoBitsCounter()] for _ in range(UFTB_WAYS_NUM)]
-        self.update_queue = []
-        self.replacer_update_queue = []
-        self.replacer_update_queue2 = []
 
-    def find_hit_way(self, pc):
-        tag = uFTBWay.get_tag(pc)
-        for i in range(UFTB_WAYS_NUM):
-            if self.ftb_ways[i].valid and self.ftb_ways[i].tag == tag:
-                return i
-        return None
+        # Update requests are used to update FTBways and counters.
+        self.update_queue = []
+
+        # The update queue of the replacement algorithm, and there are two channels,
+        # the first channel has a higher priority.
+        self.replacer_update_queue = [[], []]
+
+    def update(self, update_request):
+        self.update_queue.append((update_request, 2, None))
+
+    def generate_output(self, s1_fire, s1_pc):
+        self._process_update()
+        if s1_fire:
+            hit_way = self._find_hit_way(s1_pc)
+            if hit_way is None:
+                return None
+            self.replacer_update_queue[0].append((hit_way, 1))
+
+            ftb_entry = self.ftbways[hit_way].ftb_entry
+            br_taken_mask = self._generate_br_taken_mask(hit_way)
+
+            return ftb_entry, br_taken_mask, hit_way
 
     def print_all_ftb_ways(self):
         for i in range(UFTB_WAYS_NUM):
-            print(f"way {i}: valid: {self.ftb_ways[i].valid}, tag: {hex(self.ftb_ways[i].tag << 1)}")
+            print(f"way {i}: valid: {self.ftbways[i].valid}, tag: {hex(self.ftbways[i].tag << 1)}")
 
-    def generate_output(self, s1_fire, s1_pc):
-        print(self.replacer_update_queue)
-        print(self.replacer_update_queue2)
-        print(self.update_queue)
-        self.print_all_ftb_ways()
-
-        # Process replacer update
-        new_replacer_update_queue = []
-        for i in range(len(self.replacer_update_queue)):
-            if self.replacer_update_queue[i][1] == 0:
-                self.replacer.update(self.replacer_update_queue[i][0])
-                print(f"!                                                    way {self.replacer_update_queue[i][0]} is updated")
-            else:
-                new_replacer_update_queue.append((self.replacer_update_queue[i][0], self.replacer_update_queue[i][1] - 1))
-        self.replacer_update_queue = new_replacer_update_queue
-
-        new_replacer_update_queue2 = []
-        for i in range(len(self.replacer_update_queue2)):
-            if self.replacer_update_queue2[i][1] == 0:
-                self.replacer.update(self.replacer_update_queue2[i][0])
-                print(f"!                                                    way {self.replacer_update_queue2[i][0]} is updated")
-            else:
-                new_replacer_update_queue2.append((self.replacer_update_queue2[i][0], self.replacer_update_queue2[i][1] - 1))
-        self.replacer_update_queue2 = new_replacer_update_queue2
-        print(f"replacer: {self.replacer.get_lru_way()}")
-
-        # process update request
-        for i in range(len(self.update_queue)):
-            selected_way = self.update_queue[i][2]
-            if self.update_queue[i][1] == 1:
-                if selected_way is None:
-                    selected_way = self.replacer.get_lru_way()
-                    print(f"victim way is {selected_way}, tag: {hex(self.ftb_ways[selected_way].tag << 1)}, valid: {self.ftb_ways[selected_way].valid}")
-                self.update_queue[i] = (self.update_queue[i][0], self.update_queue[i][1], selected_way)
-                self.replacer_update_queue2.insert(0, (selected_way, 0))
-                print(f"Append way {selected_way}")
-
-        new_update_queue = []
-        for i in range(len(self.update_queue)):
-            if self.update_queue[i][1] == 0:
-                self.update_all(self.update_queue[i][0], self.update_queue[i][2])
-            else:
-                selected_way = self.update_queue[i][2]
-                if self.update_queue[i][1] == 2:
-                    selected_way = self.find_hit_way(self.update_queue[i][0]['bits_pc'])
-
-                    for j in range(len(self.update_queue)):
-                        if self.update_queue[j][1] == 1:
-                            if uFTBWay.get_tag(self.update_queue[i][0]['bits_pc']) == uFTBWay.get_tag(self.update_queue[j][0]['bits_pc']):
-                                if selected_way is None or self.update_queue[j][2] < selected_way:
-                                    selected_way = self.update_queue[j][2]
-                                    break
-                    print(f"Hit selected way is {selected_way}")
-                new_update_queue.append((self.update_queue[i][0], self.update_queue[i][1] - 1, selected_way))
-        self.update_queue = new_update_queue
-
-        if not s1_fire:
-            return None
-
-        hit_way = self.find_hit_way(s1_pc)
-        # print({ "hit_way": hit_way, "hit": 1 if hit_way is not None else 0})
-        if hit_way is None:
-            return None
-        print(f"RM Hit at {hit_way}")
-
-        self.replacer_update_queue.append((hit_way, 1))
-
-        ftb_entry = self.ftb_ways[hit_way].ftb_entry
+    def _generate_br_taken_mask(self, hit_way):
+        ftb_entry = self.ftbways[hit_way].ftb_entry
         br_taken_mask = [self.counters[hit_way][0].get_prediction(), self.counters[hit_way][1].get_prediction()]
         for i in range(2):
             if ftb_entry.always_taken[i]:
                 br_taken_mask[i] = 1
-        return ftb_entry, br_taken_mask, hit_way
+        return br_taken_mask
 
-    def get_update_way(self, pc):
-        hit_way = self.find_hit_way(pc)
-        if hit_way is not None:
-            return hit_way
-        else:
-            victim_way = self.replacer.get_lru_way()
-            print(f"victim way is {victim_way}, tag: {hex(self.ftb_ways[victim_way].tag << 1)}, valid: {self.ftb_ways[victim_way].valid}")
-            return self.replacer.get_lru_way()
+    def _process_update(self):
+        # Update replacement algorithm
+        for i in range(2):
+            new_update_queue = []
+            for j in range(len(self.replacer_update_queue[i])):
+                if self.replacer_update_queue[i][j][1] == 0:
+                    self.replacer.update(self.replacer_update_queue[i][j][0])
+                else:
+                    new_update_queue.append((self.replacer_update_queue[i][j][0], self.replacer_update_queue[i][j][1] - 1))
+            self.replacer_update_queue[i] = new_update_queue
 
-    def update_ftb_ways(self, update_request, selected_way):
+        # Processing update requests
+
+        # Find the item for the next cycle update to fit the dut hit mode
+        next_cycle_update_item = []
+        for i in range(len(self.update_queue)):
+            selected_way = self.update_queue[i][2]
+            if self.update_queue[i][1] == 1:
+                if selected_way is None:
+                    selected_way = self.replacer.get()
+                next_cycle_update_item.append((self.update_queue[i][0], selected_way))
+                self.update_queue[i] = (self.update_queue[i][0], self.update_queue[i][1], selected_way)
+                self.replacer_update_queue[1].insert(0, (selected_way, 0))
+
+        # Update request processing
+        new_update_queue = []
+        for i in range(len(self.update_queue)):
+            if self.update_queue[i][1] == 0:
+                self._update_all(self.update_queue[i][0], self.update_queue[i][2])
+            else:
+                selected_way = self.update_queue[i][2]
+                if self.update_queue[i][1] == 2:
+                    selected_way = self._find_hit_way(self.update_queue[i][0]['bits_pc'])
+
+                    for (update_request, way) in next_cycle_update_item:
+                        if uFTBWay.get_tag(self.update_queue[i][0]['bits_pc']) == uFTBWay.get_tag(update_request["bits_pc"]):
+                            if selected_way is None or way < selected_way:
+                                selected_way = way
+                                break
+                    print(f"Hit selected way is {selected_way}")
+
+                new_update_queue.append((self.update_queue[i][0], self.update_queue[i][1] - 1, selected_way))
+        self.update_queue = new_update_queue
+
+    def _find_hit_way(self, pc):
+        tag = uFTBWay.get_tag(pc)
+        for i in range(UFTB_WAYS_NUM):
+            if self.ftbways[i].valid and self.ftbways[i].tag == tag:
+                return i
+        return None
+
+    def _update_ftb_ways(self, update_request, selected_way):
         if not update_request["valid"]:
             return
 
         print(f"ftb entry {hex(update_request['bits_pc'])} is put into way {selected_way}")
-        self.ftb_ways[selected_way].valid = 1
-        self.ftb_ways[selected_way].tag = uFTBWay.get_tag(update_request["bits_pc"])
-        self.ftb_ways[selected_way].ftb_entry = FTBEntry.from_dict(update_request["ftb_entry"])
+        self.ftbways[selected_way].valid = 1
+        self.ftbways[selected_way].tag = uFTBWay.get_tag(update_request["bits_pc"])
+        self.ftbways[selected_way].ftb_entry = FTBEntry.from_dict(update_request["ftb_entry"])
 
-    def update_counters(self, update_request, selected_way):
+    def _update_counters(self, update_request, selected_way):
         if not update_request["valid"]:
             return
 
@@ -174,12 +174,7 @@ class uFTBModel:
             if need_to_update[i]:
                 self.counters[selected_way][i].update(br_taken_mask[i])
 
-    def update_all(self, update_request, selected_way):
-        # self.replacer_update_queue.append((self.get_update_way(update_request['bits_pc']), 0))
-        # self.replacer.update(self.get_update_way(update_request['bits_pc']))
-        self.update_ftb_ways(update_request, selected_way)
-        self.update_counters(update_request, selected_way)
+    def _update_all(self, update_request, selected_way):
+        self._update_ftb_ways(update_request, selected_way)
+        self._update_counters(update_request, selected_way)
 
-    def update(self, update_request):
-        # self.update_all(update_request)
-        self.update_queue.append((update_request, 2, None))
