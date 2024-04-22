@@ -34,6 +34,7 @@ class Executor:
         if (2 <= self._current_branch["pc"] - self._current_pc <= 4):
             inst_len = self._current_branch["pc"] - self._current_pc
             self._current_pc = self._current_branch["pc"]
+
         elif (self._current_branch["pc"] == self._current_pc):
             inst_len = Executor.branch_inst_len(self._current_branch)
             self._current_pc = self._current_branch["target"] if self._current_branch["taken"] \
@@ -41,6 +42,7 @@ class Executor:
 
             branch = self._current_branch
             self._current_branch = next(self._executor)
+
         else:
             inst_len = Executor.random_inst_len(self._current_pc)
             self._current_pc += Executor.random_inst_len(self._current_pc)
