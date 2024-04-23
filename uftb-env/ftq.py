@@ -82,7 +82,7 @@ class FTQ:
     """Simulate FTQ behavior."""
 
     def __init__(self):
-        self.executor = Executor(reset_vector=RESET_VECTOR)
+        self.executor = Executor(filename=PROGRAM_NAME, reset_vector=RESET_VECTOR)
 
         self.entries = [FTQEntry() for _ in range(32)]
         self.bpu_ptr = 0

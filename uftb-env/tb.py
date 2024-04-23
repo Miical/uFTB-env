@@ -2,6 +2,7 @@ import mlvp
 
 from bundle import *
 from bpu_top import *
+from config import MAX_CYCLE
 
 
 import os
@@ -30,7 +31,7 @@ async def uftb_test():
     mlvp.create_task(mlvp.start_clock(uFTB))
     mlvp.create_task(BPUTop(uFTB, uFTB_out, uFTB_update, pipeline_ctrl, enable_ctrl).run())
 
-    await ClockCycles(uFTB, 10000)
+    await ClockCycles(uFTB, MAX_CYCLE)
 
 if __name__ == "__main__":
     mlvp.run(uftb_test())

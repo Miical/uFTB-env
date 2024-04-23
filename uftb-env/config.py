@@ -1,3 +1,6 @@
+PROGRAM_NAME = "ready-to-run/microbench.bin"
+MAX_CYCLE = 10000
+
 INST_OFFSET_BITS = 1
 PREDICT_WIDTH_OFFSET_BITS = 4
 

@@ -6,7 +6,7 @@ from BRTParser import BRTParser
 class Executor:
     """Get program real execution instruction flow."""
 
-    def __init__(self, filename="ready-to-run/microbench.bin", reset_vector=0x80000000):
+    def __init__(self, filename, reset_vector=0x80000000):
         self._executor = BRTParser().fetch(filename)
         self._current_branch = next(self._executor)
         self._current_pc = reset_vector
